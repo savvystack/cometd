@@ -1,3 +1,6 @@
+** Forked to customize the benchmark tool. **
+
+
 ## The CometD Project ##
 
 Welcome to the [CometD](https://cometd.org) Project, a scalable comet (server push) implementation for the web.
