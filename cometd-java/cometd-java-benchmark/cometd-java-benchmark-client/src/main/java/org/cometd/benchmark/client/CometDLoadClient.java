@@ -182,6 +182,13 @@ public class CometDLoadClient implements MeasureConverter {
                     client.userIds.add(userId);
                 }
             }
+
+            if (client.userIds == null) {
+                client.userIds = new ArrayList<>(client.clients);
+                for (int i = 0; i < client.clients; i ++) {
+                    client.userIds.add(i + 1);
+                }
+            }
         }
     }
 
