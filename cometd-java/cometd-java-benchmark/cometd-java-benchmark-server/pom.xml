@@ -46,7 +46,7 @@
             <argument>-showversion</argument>
             <argument>-Xmx2g</argument>
             <argument>-Xms2g</argument>
-            <argument>-Xlog:gc:stderr:time,level,tags</argument>
+            <!-- <argument>-Xlog:gc:stderr:time,level,tags</argument> -->
             <argument>-XX:+PrintCommandLineFlags</argument>
             <!--<argument>-XX:+UseParallelOldGC</argument>-->
             <argument>-cp</argument>
