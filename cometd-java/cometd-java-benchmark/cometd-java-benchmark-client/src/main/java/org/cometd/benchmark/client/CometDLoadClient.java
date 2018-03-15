@@ -121,6 +121,9 @@ public class CometDLoadClient implements MeasureConverter {
     private boolean randomize = false;
     private String file = "./result.json";
 
+    private String gameRoom;
+    private ArrayList<Integer> userIds;
+
     public static void main(String[] args) throws Exception {
         CometDLoadClient client = new CometDLoadClient();
         parseArguments(args, client);
@@ -169,6 +172,15 @@ public class CometDLoadClient implements MeasureConverter {
                 client.randomize = true;
             } else if (arg.startsWith("--file=")) {
                 client.file = arg.substring("--file=".length());
+            } else if (arg.startsWith("--gameRoom=")) {
+                client.gameRoom = arg.substring("--gameRoom=".length());
+            } else if (arg.startsWith("--userIds")) {
+                client.userIds = new ArrayList<>();
+                String values = arg.substring("--userIds=".length());
+                for (String v : values.split(",")) {
+                    int userId = Integer.parseInt(v);
+                    client.userIds.add(userId);
+                }
             }
         }
     }
@@ -599,6 +611,10 @@ public class CometDLoadClient implements MeasureConverter {
     }
 
     private long sendBatches(int batchSize, long batchPause, String chat, String channel, LoadBayeuxClient client) {
+        if (client.userId < 0) {
+            return batchSize;
+        }
+
         long expected = 0;
         client.startBatch();
         for (int b = 0; b < batchSize; ++b) {
@@ -610,15 +626,18 @@ public class CometDLoadClient implements MeasureConverter {
             }
             Map<String, Object> message = new HashMap<>(5);
             // Additional fields to simulate a chat message
-            message.put("room", room);
-            message.put("user", client.hashCode());
-            message.put("chat", chat);
+            message.put("action", "join");
+            message.put("room", gameRoom);
+            message.put("user", client.userId);
+
             // Mandatory fields to record latencies
             message.put(START_FIELD, System.nanoTime());
             String startDate = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").format(System.currentTimeMillis());
             message.put(START_DATE_FIELD, startDate);
             message.put(Config.ID_FIELD, String.valueOf(ids.incrementAndGet()) + channel);
-            ClientSessionChannel clientChannel = client.getChannel(getChannelId(channel + "/" + room));
+//            ClientSessionChannel clientChannel = client.getChannel(getChannelId(channel + "/" + room));
+            String gameRoomChannel = "/service/gameroom/" + gameRoom;
+            ClientSessionChannel clientChannel = client.getChannel(getChannelId(gameRoomChannel));
             clientChannel.publish(message);
             clientChannel.release();
             expected += clientsPerRoom.get();
@@ -687,7 +706,7 @@ public class CometDLoadClient implements MeasureConverter {
         int retries = maxRetries;
         while (arrived < expected) {
             System.err.printf("Waiting for messages to arrive %d/%d%n", arrived, expected);
-            Thread.sleep(500);
+            Thread.sleep(2000);
             if (lastArrived == arrived) {
                 --retries;
                 if (retries == 0) {
@@ -870,6 +889,7 @@ public class CometDLoadClient implements MeasureConverter {
     private class LoadBayeuxClient extends BayeuxClient {
         private final List<Integer> subscriptions = new ArrayList<>();
         private final ClientSessionChannel.MessageListener latencyListener;
+        private int userId;
 
         private LoadBayeuxClient(String url, ScheduledExecutorService scheduler, ClientTransport transport, ClientSessionChannel.MessageListener listener, boolean enableAckExtension) {
             super(url, scheduler, transport);
@@ -877,11 +897,17 @@ public class CometDLoadClient implements MeasureConverter {
             if (enableAckExtension) {
                 addExtension(new AckExtension());
             }
+            if (userIds.size() > 0)
+                userId = userIds.remove(0);
+            else
+                userId = -1; // we run out of users
         }
 
         public void init(String channel, int room) {
             if (latencyListener != null) {
-                getChannel(getChannelId(channel + "/" + room)).subscribe(latencyListener);
+                String channelName = "/service/gameroom/" + gameRoom;
+                getChannel(getChannelId(channelName)).subscribe(latencyListener);
+//                getChannel(getChannelId(channel + "/" + room)).subscribe(latencyListener);
             }
 
             AtomicInteger clientsPerRoom = roomMap.get(room);
@@ -953,8 +979,8 @@ public class CometDLoadClient implements MeasureConverter {
                 Map<String, Object> data = message.getDataAsMap();
                 if (data != null) {
                     response = true;
-                    String id = (String)data.get(Config.ID_FIELD);
-                    arrivalTimes.get(id).getReference().add(now);
+                    // String id = (String)data.get(Config.ID_FIELD);
+                    // arrivalTimes.get(id).getReference().add(now);
                 }
             }
             if (response) {
