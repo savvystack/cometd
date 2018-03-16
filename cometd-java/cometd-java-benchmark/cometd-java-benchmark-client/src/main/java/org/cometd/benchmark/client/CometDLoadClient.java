@@ -182,12 +182,12 @@ public class CometDLoadClient implements MeasureConverter {
                     client.userIds.add(userId);
                 }
             }
-
-            if (client.userIds == null) {
-                client.userIds = new ArrayList<>(client.clients);
-                for (int i = 0; i < client.clients; i ++) {
-                    client.userIds.add(i + 1);
-                }
+        }
+        if (client.userIds == null) {
+            // if no userIds are supplied, we'll use sequential numbers from 1 to the number of clients
+            client.userIds = new ArrayList<>(client.clients);
+            for (int i = 0; i < client.clients; i ++) {
+                client.userIds.add(i + 1);
             }
         }
     }
@@ -353,8 +353,8 @@ public class CometDLoadClient implements MeasureConverter {
         DisconnectListener disconnectListener = new DisconnectListener();
         LatencyListener latencyListener = new LatencyListener();
 
-        LoadBayeuxClient statsClient = new LoadBayeuxClient(url, scheduler, newClientTransport(transport), null, false);
-        statsClient.handshake();
+//        LoadBayeuxClient statsClient = new LoadBayeuxClient(url, scheduler, newClientTransport(transport), null, false);
+//        statsClient.handshake();
 
         int clients = this.clients;
         int batches = this.batches;
@@ -490,16 +490,18 @@ public class CometDLoadClient implements MeasureConverter {
             }
 
             // Send a message to the server to signal the start of the test.
-            statsClient.begin();
+//            statsClient.begin();
 
             PlatformMonitor.Start start = monitor.start();
             System.err.println();
             System.err.println(start);
             System.err.printf("Testing %d clients in %d rooms, %d rooms/client%n", bayeuxClients.size(), rooms, roomsPerClient);
-            System.err.printf("Sending %d batches of %dx%d bytes messages every %d \u00B5s%n", batches, batchSize, messageSize, batchPause);
+//            System.err.printf("Sending %d batches of %dx%d bytes messages every %d \u00B5s%n", batches, batchSize, messageSize, batchPause);
 
             long begin = System.nanoTime();
-            long expected = runBatches(batches, batchSize, batchPause, chat, randomize, channel);
+//            long expected = runBatches(b`atches, batchSize, batchPause, chat, randomize, channel);
+            for (LoadBayeuxClient client : bayeuxClients)
+                client.joinGameRoom();
             long end = System.nanoTime();
 
             PlatformMonitor.Stop stop = monitor.stop();
@@ -518,76 +520,77 @@ public class CometDLoadClient implements MeasureConverter {
                 );
             }
 
-            waitForMessages(expected);
-            long messages = this.messages.get();
+//            waitForMessages(expected);
+//            long messages = this.messages.get();
 
-            long receiveElapsed = this.end.get() - this.start.get();
-            long receiveRate = 0;
-            if (receiveElapsed > 0) {
-                receiveRate = messages * 1000 * 1000 * 1000 / receiveElapsed;
-            }
+//            long receiveElapsed = this.end.get() - this.start.get();
+//            long receiveRate = 0;
+//            if (receiveElapsed > 0) {
+//                receiveRate = messages * 1000 * 1000 * 1000 / receiveElapsed;
+//            }
 
             // Send a message to the server to signal the end of the test.
-            statsClient.end();
+//            statsClient.end();
 
-            Histogram histogram = printResults(messages, expected, receiveElapsed, messageSize);
-            if (!interactive) {
-                Map<String, Object> run = new LinkedHashMap<>();
-                Map<String, Object> config = new LinkedHashMap<>();
-                run.put("config", config);
-                config.put("cores", start.cores);
-                config.put("totalMemory", new Measure(start.gibiBytes(start.totalMemory), "GiB"));
-                config.put("os", start.os);
-                config.put("jvm", start.jvm);
-                config.put("totalHeap", new Measure(start.gibiBytes(start.heap.getMax()), "GiB"));
-                config.put("date", new Date(start.date).toString());
-                config.put("transport", transport.getName());
-                config.put("clients", bayeuxClients.size());
-                config.put("rooms", rooms);
-                config.put("roomsPerClient", roomsPerClient);
-                config.put("batches", batches);
-                config.put("batchSize", batchSize);
-                config.put("batchPause", new Measure(batchPause, "\u00B5s"));
-                config.put("messageSize", new Measure(messageSize, "B"));
-                Map<String, Object> results = new LinkedHashMap<>();
-                run.put("results", results);
-                results.put("cpu", new Measure(stop.percent(stop.cpuTime, stop.time) / start.cores, "%"));
-                results.put("jitTime", new Measure(stop.jitTime, "ms"));
-                results.put("messages", messages);
-                results.put("sendTime", new Measure(TimeUnit.NANOSECONDS.toMillis(sendElapsed), "ms"));
-                results.put("sendRate", new Measure(sendRate, "messages/s"));
-                results.put("receiveTime", new Measure(TimeUnit.NANOSECONDS.toMillis(receiveElapsed), "ms"));
-                results.put("receiveRate", new Measure(receiveRate, "messages/s"));
-                Map<String, Object> latency = new LinkedHashMap<>();
-                results.put("latency", latency);
-                latency.put("min", new Measure(convert(histogram.getMinValue()), "\u00B5s"));
-                latency.put("p50", new Measure(convert(histogram.getValueAtPercentile(50D)), "\u00B5s"));
-                latency.put("p99", new Measure(convert(histogram.getValueAtPercentile(99D)), "\u00B5s"));
-                latency.put("max", new Measure(convert(histogram.getMaxValue()), "\u00B5s"));
-                Map<String, Object> threadPool = new LinkedHashMap<>();
-                results.put("threadPool", threadPool);
-                threadPool.put("tasks", this.threadPool.getTasks());
-                threadPool.put("queueSizeMax", this.threadPool.getMaxQueueSize());
-                threadPool.put("activeThreadsMax", this.threadPool.getMaxActiveThreads());
-                threadPool.put("queueLatencyAverage", new Measure(TimeUnit.NANOSECONDS.toMillis(this.threadPool.getAverageQueueLatency()), "ms"));
-                threadPool.put("queueLatencyMax", new Measure(TimeUnit.NANOSECONDS.toMillis(this.threadPool.getMaxQueueLatency()), "ms"));
-                threadPool.put("taskTimeAverage", new Measure(TimeUnit.NANOSECONDS.toMillis(this.threadPool.getAverageTaskLatency()), "ms"));
-                threadPool.put("taskTimeMax", new Measure(TimeUnit.NANOSECONDS.toMillis(this.threadPool.getMaxTaskLatency()), "ms"));
-                Map<String, Object> gc = new LinkedHashMap<>();
-                results.put("gc", gc);
-                gc.put("youngCount", stop.youngCount);
-                gc.put("youngTime", new Measure(stop.youngTime, "ms"));
-                gc.put("oldCount", stop.oldCount);
-                gc.put("oldTime", new Measure(stop.oldTime, "ms"));
-                gc.put("youngGarbage", new Measure(stop.mebiBytes(stop.edenBytes + stop.survivorBytes), "MiB"));
-                gc.put("oldGarbage", new Measure(stop.mebiBytes(stop.tenuredBytes), "MiB"));
-                saveResults(run, file);
-            }
+//            Histogram histogram = printResults(messages, expected, receiveElapsed, messageSize);
+//            if (!interactive) {
+//                Map<String, Object> run = new LinkedHashMap<>();
+//                Map<String, Object> config = new LinkedHashMap<>();
+//                run.put("config", config);
+//                config.put("cores", start.cores);
+//                config.put("totalMemory", new Measure(start.gibiBytes(start.totalMemory), "GiB"));
+//                config.put("os", start.os);
+//                config.put("jvm", start.jvm);
+//                config.put("totalHeap", new Measure(start.gibiBytes(start.heap.getMax()), "GiB"));
+//                config.put("date", new Date(start.date).toString());
+//                config.put("transport", transport.getName());
+//                config.put("clients", bayeuxClients.size());
+//                config.put("rooms", rooms);
+//                config.put("roomsPerClient", roomsPerClient);
+//                config.put("batches", batches);
+//                config.put("batchSize", batchSize);
+//                config.put("batchPause", new Measure(batchPause, "\u00B5s"));
+//                config.put("messageSize", new Measure(messageSize, "B"));
+//                Map<String, Object> results = new LinkedHashMap<>();
+//                run.put("results", results);
+//                results.put("cpu", new Measure(stop.percent(stop.cpuTime, stop.time) / start.cores, "%"));
+//                results.put("jitTime", new Measure(stop.jitTime, "ms"));
+//                results.put("messages", messages);
+//                results.put("sendTime", new Measure(TimeUnit.NANOSECONDS.toMillis(sendElapsed), "ms"));
+//                results.put("sendRate", new Measure(sendRate, "messages/s"));
+//                results.put("receiveTime", new Measure(TimeUnit.NANOSECONDS.toMillis(receiveElapsed), "ms"));
+//                results.put("receiveRate", new Measure(receiveRate, "messages/s"));
+//                Map<String, Object> latency = new LinkedHashMap<>();
+//                results.put("latency", latency);
+//                latency.put("min", new Measure(convert(histogram.getMinValue()), "\u00B5s"));
+//                latency.put("p50", new Measure(convert(histogram.getValueAtPercentile(50D)), "\u00B5s"));
+//                latency.put("p99", new Measure(convert(histogram.getValueAtPercentile(99D)), "\u00B5s"));
+//                latency.put("max", new Measure(convert(histogram.getMaxValue()), "\u00B5s"));
+//                Map<String, Object> threadPool = new LinkedHashMap<>();
+//                results.put("threadPool", threadPool);
+//                threadPool.put("tasks", this.threadPool.getTasks());
+//                threadPool.put("queueSizeMax", this.threadPool.getMaxQueueSize());
+//                threadPool.put("activeThreadsMax", this.threadPool.getMaxActiveThreads());
+//                threadPool.put("queueLatencyAverage", new Measure(TimeUnit.NANOSECONDS.toMillis(this.threadPool.getAverageQueueLatency()), "ms"));
+//                threadPool.put("queueLatencyMax", new Measure(TimeUnit.NANOSECONDS.toMillis(this.threadPool.getMaxQueueLatency()), "ms"));
+//                threadPool.put("taskTimeAverage", new Measure(TimeUnit.NANOSECONDS.toMillis(this.threadPool.getAverageTaskLatency()), "ms"));
+//                threadPool.put("taskTimeMax", new Measure(TimeUnit.NANOSECONDS.toMillis(this.threadPool.getMaxTaskLatency()), "ms"));
+//                Map<String, Object> gc = new LinkedHashMap<>();
+//                results.put("gc", gc);
+//                gc.put("youngCount", stop.youngCount);
+//                gc.put("youngTime", new Measure(stop.youngTime, "ms"));
+//                gc.put("oldCount", stop.oldCount);
+//                gc.put("oldTime", new Measure(stop.oldTime, "ms"));
+//                gc.put("youngGarbage", new Measure(stop.mebiBytes(stop.edenBytes + stop.survivorBytes), "MiB"));
+//                gc.put("oldGarbage", new Measure(stop.mebiBytes(stop.tenuredBytes), "MiB"));
+//                saveResults(run, file);
+//            }
 
             reset();
+            Thread.sleep(10000000);
         }
 
-        statsClient.exit();
+//        statsClient.exit();
 
         webSocketClient.stop();
 
@@ -618,38 +621,35 @@ public class CometDLoadClient implements MeasureConverter {
     }
 
     private long sendBatches(int batchSize, long batchPause, String chat, String channel, LoadBayeuxClient client) {
-        if (client.userId < 0) {
-            return batchSize;
-        }
-
         long expected = 0;
-        client.startBatch();
-        for (int b = 0; b < batchSize; ++b) {
-            int room = -1;
-            AtomicInteger clientsPerRoom = null;
-            while (clientsPerRoom == null || clientsPerRoom.get() == 0) {
-                room = nextRandom(roomMap.size());
-                clientsPerRoom = roomMap.get(room);
-            }
-            Map<String, Object> message = new HashMap<>(5);
-            // Additional fields to simulate a chat message
-            message.put("action", "join");
-            message.put("room", gameRoom);
-            message.put("user", client.userId);
-
-            // Mandatory fields to record latencies
-            message.put(START_FIELD, System.nanoTime());
-            String startDate = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").format(System.currentTimeMillis());
-            message.put(START_DATE_FIELD, startDate);
-            message.put(Config.ID_FIELD, String.valueOf(ids.incrementAndGet()) + channel);
-//            ClientSessionChannel clientChannel = client.getChannel(getChannelId(channel + "/" + room));
-            String gameRoomChannel = "/service/gameroom/" + gameRoom;
-            ClientSessionChannel clientChannel = client.getChannel(getChannelId(gameRoomChannel));
-            clientChannel.publish(message);
-            clientChannel.release();
-            expected += clientsPerRoom.get();
-        }
-        client.endBatch();
+        client.joinGameRoom();
+//        client.startBatch();
+//        for (int b = 0; b < batchSize; ++b) {
+//            int room = -1;
+//            AtomicInteger clientsPerRoom = null;
+//            while (clientsPerRoom == null || clientsPerRoom.get() == 0) {
+//                room = nextRandom(roomMap.size());
+//                clientsPerRoom = roomMap.get(room);
+//            }
+//            Map<String, Object> message = new HashMap<>(5);
+//            // Additional fields to simulate a chat message
+//            message.put("action", "join");
+//            message.put("room", gameRoom);
+//            message.put("user", client.userId);
+//
+//            // Mandatory fields to record latencies
+//            message.put(START_FIELD, System.nanoTime());
+//            String startDate = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").format(System.currentTimeMillis());
+//            message.put(START_DATE_FIELD, startDate);
+//            message.put(Config.ID_FIELD, String.valueOf(ids.incrementAndGet()) + channel);
+////            ClientSessionChannel clientChannel = client.getChannel(getChannelId(channel + "/" + room));
+//            String gameRoomChannel = "/service/gameroom/" + gameRoom;
+//            ClientSessionChannel clientChannel = client.getChannel(getChannelId(gameRoomChannel));
+//            clientChannel.publish(message);
+//            clientChannel.release();
+//            expected += clientsPerRoom.get();
+//        }
+//        client.endBatch();
 
         if (batchPause > 0) {
             timer.sleep(batchPause);
@@ -897,6 +897,9 @@ public class CometDLoadClient implements MeasureConverter {
         private final List<Integer> subscriptions = new ArrayList<>();
         private final ClientSessionChannel.MessageListener latencyListener;
         private int userId;
+        private int playerNumber;
+        private String gameId;
+        private List<String> moves;
 
         private LoadBayeuxClient(String url, ScheduledExecutorService scheduler, ClientTransport transport, ClientSessionChannel.MessageListener listener, boolean enableAckExtension) {
             super(url, scheduler, transport);
@@ -904,18 +907,14 @@ public class CometDLoadClient implements MeasureConverter {
             if (enableAckExtension) {
                 addExtension(new AckExtension());
             }
-            if (userIds.size() > 0)
-                userId = userIds.remove(0);
-            else
-                userId = -1; // we run out of users
+            userId = userIds.get(nextRandom(userIds.size()));
         }
 
         public void init(String channel, int room) {
-            if (latencyListener != null) {
-                String channelName = "/service/gameroom/" + gameRoom;
-                getChannel(getChannelId(channelName)).subscribe(latencyListener);
-//                getChannel(getChannelId(channel + "/" + room)).subscribe(latencyListener);
-            }
+//            if (latencyListener != null) {
+//                String channelName = "/service/gameroom/" + gameRoom;
+//                getChannel(getChannelId(channelName)).subscribe(latencyListener);
+//            }
 
             AtomicInteger clientsPerRoom = roomMap.get(room);
             if (clientsPerRoom == null) {
@@ -928,6 +927,46 @@ public class CometDLoadClient implements MeasureConverter {
             clientsPerRoom.incrementAndGet();
 
             subscriptions.add(room);
+        }
+
+        public void joinGameRoom() {
+            Map<String, Object> message = new HashMap<>(3);
+            message.put("action", "join");
+            message.put("room", gameRoom);
+            message.put("user", userId);
+
+            String gameRoomChannel = "/service/gameroom/" + gameRoom;
+            ClientSessionChannel clientChannel = getChannel(getChannelId(gameRoomChannel));
+            clientChannel.publish(message);
+            clientChannel.release();
+        }
+
+        public void leaveGameRoom() {
+            Map<String, Object> message = new HashMap<>(3);
+            message.put("action", "leave");
+            message.put("room", gameRoom);
+            message.put("user", userId);
+
+            String gameRoomChannel = "/service/gameroom/" + gameRoom;
+            ClientSessionChannel clientChannel = getChannel(getChannelId(gameRoomChannel));
+            clientChannel.publish(message);
+            clientChannel.release();
+        }
+
+        public void submitSurveyChoice(int index, int choice) {
+            ArrayList<Integer> data = new ArrayList<>(2);
+            data.add(index);
+            data.add(choice);
+            Map<String, Object> message = new HashMap<>(3);
+            message.put("action", "RESPOND");
+            message.put("user", userId);
+            message.put("player", playerNumber);
+            message.put("data", data);
+
+            String gameChannel = "/service/game/" + gameId;
+            ClientSessionChannel clientChannel = getChannel(getChannelId(gameChannel));
+            clientChannel.publish(message);
+            clientChannel.release();
         }
 
         public void destroy() {
@@ -986,8 +1025,27 @@ public class CometDLoadClient implements MeasureConverter {
                 Map<String, Object> data = message.getDataAsMap();
                 if (data != null) {
                     response = true;
-                    // String id = (String)data.get(Config.ID_FIELD);
-                    // arrivalTimes.get(id).getReference().add(now);
+                    String event = (String)data.get("event");
+                    System.err.println("onMessages(): message.data.event=" + event);
+                    if (event.equalsIgnoreCase("USER_JOINED")) {
+
+                    } else if (event.equalsIgnoreCase("SESSION_STARTED")) {
+
+                    } else if (event.equalsIgnoreCase("GAME_STARTED")) {
+                        gameId = (String)data.get("gameId");
+                        playerNumber = (Integer)((Map<String, Object>)data.get("playerState")).get("playerNumber");
+
+                    } else if (event.equalsIgnoreCase("GAME_NOTICE")) {
+                        Map<String, Object> playerData = (Map<String, Object>)data.get("data");
+
+                    } else if (event.equalsIgnoreCase("PLAYER_UPDATED")) {
+                        Map<String, Object> playerData = (Map<String, Object>)data.get("data");
+                        playerNumber = (Integer)playerData.get("playerNumber");
+                        moves = (List<String>)playerData.get("moves");
+                        int questionIndex = (Integer)playerData.get("index");
+                        if (moves.size() > 0)
+                            submitSurveyChoice(questionIndex, 1);
+                    }
                 }
             }
             if (response) {
