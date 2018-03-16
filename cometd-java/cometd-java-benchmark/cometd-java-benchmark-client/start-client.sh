@@ -9,7 +9,8 @@ java -showversion -Xmx2g -Xms2g -XX:+PrintCommandLineFlags -cp /Users/raymond/Wo
 --tls=false \
 --rooms=1 \
 --roomsPerClient=1 \
---clients=1000 \
---batches=1000 \
+--clients=100 \
+--batches=1 \
 --batchSize=1 \
 --gameRoom=4208fc87-1c7f-4de4-a585-43fe40fe05eb
+# --userIds=5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
