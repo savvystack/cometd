@@ -123,6 +123,7 @@ public class CometDLoadClient implements MeasureConverter {
 
     private String gameRoom;
     private ArrayList<Integer> userIds;
+    private int startingUserID;
 
     public static void main(String[] args) throws Exception {
         CometDLoadClient client = new CometDLoadClient();
@@ -181,13 +182,15 @@ public class CometDLoadClient implements MeasureConverter {
                     int userId = Integer.parseInt(v);
                     client.userIds.add(userId);
                 }
+            } else if (arg.startsWith("--startingUserID")) {
+                client.startingUserID = Integer.parseInt(arg.substring("--startingUserID=".length()));
             }
         }
         if (client.userIds == null) {
             // if no userIds are supplied, we'll use sequential numbers from 1 to the number of clients
             client.userIds = new ArrayList<>(client.clients);
             for (int i = 0; i < client.clients; i ++) {
-                client.userIds.add(i + 1);
+                client.userIds.add(i + 1 + client.startingUserID);
             }
         }
     }
