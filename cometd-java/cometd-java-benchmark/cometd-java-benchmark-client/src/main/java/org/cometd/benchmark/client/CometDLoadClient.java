@@ -385,13 +385,13 @@ public class CometDLoadClient implements MeasureConverter {
                 clients = 0;
             }
 
-            System.err.println("Waiting for clients to be ready...");
+            System.err.println("Starting game clients...");
 
             // Create or remove the necessary bayeux clients
             int currentClients = bayeuxClients.size();
             if (currentClients < clients) {
                 for (int i = 0; i < clients - currentClients; ++i) {
-                    LoadBayeuxClient client = new LoadBayeuxClient(url, scheduler, newClientTransport(transport), latencyListener, ackExtension);
+                    LoadBayeuxClient client = new LoadBayeuxClient(url, scheduler, newClientTransport(transport), latencyListener, ackExtension, i);
                     client.getChannel(Channel.META_HANDSHAKE).addListener(handshakeListener);
                     client.getChannel(Channel.META_DISCONNECT).addListener(disconnectListener);
                     client.handshake();
@@ -412,12 +412,14 @@ public class CometDLoadClient implements MeasureConverter {
                 }
             }
 
-            int maxRetries = 50;
+            System.err.println("Waiting for game clients to be ready...");
+
+            int maxRetries = 10;
             int retries = maxRetries;
             int lastSize = 0;
             int currentSize = bayeuxClients.size();
             while (currentSize != clients) {
-                Thread.sleep(250);
+                Thread.sleep(1000);
                 System.err.printf("Waiting for clients %d/%d%n", currentSize, clients);
                 if (lastSize == currentSize) {
                     --retries;
@@ -431,8 +433,7 @@ public class CometDLoadClient implements MeasureConverter {
                 currentSize = bayeuxClients.size();
             }
             if (currentSize != clients) {
-                System.err.printf("Clients not ready, only %d/%d%n", currentSize, clients);
-                break;
+                System.err.printf("Only %d/%d clients are ready, proceed with test%n", currentSize, clients);
             } else {
                 if (currentSize == 0) {
                     System.err.println("All clients disconnected, exiting");
@@ -899,17 +900,19 @@ public class CometDLoadClient implements MeasureConverter {
     private class LoadBayeuxClient extends BayeuxClient {
         private final List<Integer> subscriptions = new ArrayList<>();
         private final ClientSessionChannel.MessageListener latencyListener;
+        private int index;
         private int userId;
         private int playerNumber;
         private String gameId;
         private List<String> moves;
 
-        private LoadBayeuxClient(String url, ScheduledExecutorService scheduler, ClientTransport transport, ClientSessionChannel.MessageListener listener, boolean enableAckExtension) {
+        private LoadBayeuxClient(String url, ScheduledExecutorService scheduler, ClientTransport transport, ClientSessionChannel.MessageListener listener, boolean enableAckExtension, int index) {
             super(url, scheduler, transport);
             this.latencyListener = listener;
             if (enableAckExtension) {
                 addExtension(new AckExtension());
             }
+            this.index = index;
             userId = userIds.get(nextRandom(userIds.size()));
         }
 
@@ -930,9 +933,11 @@ public class CometDLoadClient implements MeasureConverter {
             clientsPerRoom.incrementAndGet();
 
             subscriptions.add(room);
+            System.err.printf("Client %d (userId=%d) ready%n", index, userId);
         }
 
         public void joinGameRoom() {
+            System.err.printf("Client %d (userId=%d) attempt to join game room%n", index, userId);
             Map<String, Object> message = new HashMap<>(3);
             message.put("action", "join");
             message.put("room", gameRoom);
@@ -945,6 +950,7 @@ public class CometDLoadClient implements MeasureConverter {
         }
 
         public void leaveGameRoom() {
+            System.err.printf("Client %d (userId=%d) leave game room%n", index, userId);
             Map<String, Object> message = new HashMap<>(3);
             message.put("action", "leave");
             message.put("room", gameRoom);
@@ -957,6 +963,7 @@ public class CometDLoadClient implements MeasureConverter {
         }
 
         public void submitSurveyChoice(int index, int choice) {
+            System.err.printf("Client %d (userId=%d) submit survey choice%n", this.index, userId);
             ArrayList<Integer> data = new ArrayList<>(2);
             data.add(index);
             data.add(choice);
@@ -1029,7 +1036,7 @@ public class CometDLoadClient implements MeasureConverter {
                 if (data != null) {
                     response = true;
                     String event = (String)data.get("event");
-                    System.err.println("onMessages(): message.data.event=" + event);
+                    System.err.printf("onMessages(): %s, client=%d, userId=%d%n", event, index, userId);
                     if (event.equalsIgnoreCase("USER_JOINED")) {
 
                     } else if (event.equalsIgnoreCase("SESSION_STARTED")) {
