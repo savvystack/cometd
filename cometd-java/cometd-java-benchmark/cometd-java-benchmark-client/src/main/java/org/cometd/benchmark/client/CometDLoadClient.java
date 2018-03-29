@@ -504,8 +504,8 @@ public class CometDLoadClient implements MeasureConverter {
 
             long begin = System.nanoTime();
 //            long expected = runBatches(b`atches, batchSize, batchPause, chat, randomize, channel);
-            for (LoadBayeuxClient client : bayeuxClients)
-                client.joinGameRoom();
+//            for (LoadBayeuxClient client : bayeuxClients)
+//                client.joinGameRoom();
             long end = System.nanoTime();
 
             PlatformMonitor.Stop stop = monitor.stop();
@@ -934,6 +934,7 @@ public class CometDLoadClient implements MeasureConverter {
 
             subscriptions.add(room);
             System.err.printf("Client %d (userId=%d) ready%n", index, userId);
+            this.joinGameRoom();
         }
 
         public void joinGameRoom() {
